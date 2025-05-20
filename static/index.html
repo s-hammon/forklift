@@ -1,0 +1,14 @@
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Upload Excel</title>
+	</head>
+	<body>
+		<h1>Upload an Excel file (.xlsx)</h1>
+		<form action="/upload" method="post" enctype="multipart/form-data">
+			<input type="file" name="file" accept=".xlsx" required>
+			<button type="submit">Upload</button>
+		</form>
+	</body>
+</html>
