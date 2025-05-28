@@ -1,0 +1,33 @@
+{{ define "preview" }}
+{{ if .Error }}
+<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+	<strong>Error:</strong> 
+	<span class="block sm:inline">{{ .Error }}</span>
+</div>
+{{ end }}
+
+{{ if .Rows }}
+<form hx-post="/upload" hx-target="#preview-container">
+	<div class="overflow-auto max-h-[500px] border mb-4 w-full">
+		<table class="table-auto w-full text-sm text-left text-gray-700 border-collapse">
+			{{ range $i, $row := .Rows }}
+			<tr>
+				{{ range $j, $cell := $row }}
+					{{ if eq $i 0 }}
+					<th class="border px-2 py-1 bg-gray-100 font-semibold whitespace-nowrap">{{ $cell }}</th>
+					{{ else }}
+					<td class="border px-2 py-1 whitespace-nowrap">{{ $cell }}</td>
+					{{ end }}
+				{{ end }}
+			</tr>
+			{{ end }}
+		</table>
+	</div>
+	<input type="hidden" name="token" value="{{ .Token }}">
+	<div class="mt-4 flex justify-end space-x-2">
+		<button type="submit" class="bg-green-600 text-white pgx-4 py-2 rounded hover:bg-green-700">Confirm Upload</button>
+		<button type="button" class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500" hx-get="/cancel" hx-target="#preview-container">Cancel</button>
+	</div>
+</form>
+{{ end }}
+{{ end }}

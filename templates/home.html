@@ -1,0 +1,42 @@
+{{ define "home" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="/static/tailwind.css" rel="stylesheet">
+	<script src="/static/htmx.min.js" ></script>
+	<title>Upload EMR Home</title>
+</head>
+<body class="bg-gray-100 min-hscreen">
+	<div class="flex justify-center items-center pt-10">
+		<div class="bg-white shadow-lg rounded-xl p-8 w-full max-w-md">
+			<h1 class="text-2xl font-bold mb-4 text-center">Upload Excel File</h1>
+			<form
+				id="upload-form"
+				hx-post="/preview"
+				hx-target="#preview-container"
+				hx-encoding="multipart/form-data"
+				class="space-y-4"
+			>
+				<input
+					type="file"
+					name="file"
+					accept=".xlsx"
+					required
+					class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+				>
+				<button
+					type="submit"
+					class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+				>
+					Preview
+				</button>
+			</form>
+		</div>
+	</div>
+	<div id="preview-container" class="mt-6 w-full max-w-7xl mx-auto"></div>
+</body>
+</html>
+{{ end }}
