@@ -62,6 +62,6 @@ func main() {
 	mux.HandleFunc("POST /upload", uploadHandler)
 
 	fmt.Println("listening on :8080")
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.ListenAndServe(":8080", mux)
 }

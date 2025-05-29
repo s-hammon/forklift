@@ -1,0 +1,17 @@
+{{ define "upload" }}
+  {{ if eq.Type "success" }}
+    <div class="bg-green-100 border border-green-400 text-green-800 px-4 py-3 rounded" role="alert">
+	<strong class="font-bold">Success:</strong>
+	<span class="block sm:inline">{{ .Message }}</span>
+    </div>
+  {{ else if eq .Type "error" }}
+	<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" role="alert">
+	<strong class="font-bold">Failure:</strong>
+		<span class="block sm:inline">{{ .Message }}</span>
+	</div>
+  {{ else }}
+    <div class="bg-gra-100 border border-gray-300 text-gray-700 px-4 py-3 rounded" role="alert">
+      <span>{{ .Message }}</span>
+    </div>
+  {{ end }}
+{{ end }}

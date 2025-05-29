@@ -5,8 +5,8 @@
 	<meta charset="UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link href="/static/tailwind.css" rel="stylesheet">
-	<script src="/static/htmx.min.js" ></script>
+	<link href="/assets/css/tailwind.css" rel="stylesheet">
+	<script src="/assets/js/htmx.min.js" ></script>
 	<title>Upload EMR Home</title>
 </head>
 <body class="bg-gray-100 min-hscreen">
@@ -20,19 +20,45 @@
 				hx-encoding="multipart/form-data"
 				class="space-y-4"
 			>
-				<input
-					type="file"
-					name="file"
-					accept=".xlsx"
-					required
-					class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-				>
-				<button
-					type="submit"
-					class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-				>
-					Preview
-				</button>
+				<div>
+					<label for="site" class="block text-sm font-medium text-gray-700 mb-1">
+						Select Site
+					</label>
+					<select
+						name="site"
+						id="site"
+						required
+						class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+					>
+						<option value="">-- Select a site --</option>
+						{{ range .BQTables }}
+							<option value="{{ . }}">{{ . }}</option>
+						{{ end }}
+					</select>
+				</div>
+				<div>
+					<label for="file" class="block text-sm font-medium text-gray-700 mb-1">
+						Choose Excel File
+					</label>
+					<input
+						type="file"
+						name="file"
+						id="file"
+						accept=".xls,.xlsx"
+						required
+						class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+					>
+				</div>
+				<div>
+					<button
+						hx-indicator="#spinner"
+						type="submit"
+						class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+					>
+						Preview Upload
+					</button>
+					<img id="spinner" class="htmx-indicator" src="/assets/img/spinner.svg">
+				</div>
 			</form>
 		</div>
 	</div>

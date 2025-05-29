@@ -3,84 +3,92 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/xuri/excelize/v2"
 )
+
+type Site string
+
+const (
+	Frio      Site = "Frio"
+	Medina    Site = "Medina"
+	Methodist Site = "Methodist"
+	STRIC     Site = "STRIC"
+	ValVerde  Site = "Val Verde"
+)
+
+var allowedTables = map[Site]struct{}{
+	Frio:      {},
+	Medina:    {},
+	Methodist: {},
+	STRIC:     {},
+	ValVerde:  {},
+}
+
+func getTableList() []string {
+	tables := make([]string, 0, len(allowedTables))
+	for table := range allowedTables {
+		tables = append(tables, string(table))
+	}
+	slices.Sort(tables)
+	return tables
+}
 
 var uploadHandler = func(w http.ResponseWriter, r *http.Request) {
 	token := r.FormValue("token")
 	if token == "" {
-		http.Error(w, "missing token", http.StatusBadRequest)
+		uploadError(w, http.StatusBadRequest, "missing token")
 		return
 	}
+	site := r.FormValue("site")
+	if _, ok := allowedTables[Site(site)]; !ok {
+		uploadError(w, http.StatusBadRequest, "invalid BigQuery table selected")
+		return
+	}
+	site = strings.ToLower(strings.ReplaceAll(site, " ", "_"))
 
 	value, ok := uploadStore.Load(token)
 	if !ok {
-		http.Error(w, "upload session expired or token invalid", http.StatusBadRequest)
+		uploadError(w, http.StatusBadRequest, "upload session expired or token invalid")
 		return
 	}
 
 	csvBuf, ok := value.(*bytes.Buffer)
 	if !ok {
-		http.Error(w, "Internal error: invalid data type", http.StatusInternalServerError)
+		uploadError(w, http.StatusInternalServerError, "Internal error: invalid data type")
 		return
 	}
 	objectName := fmt.Sprintf("upload_%s.csv", token)
-	if err := uploadToGCS(ctx, csvBuf, objectName); err != nil {
-		http.Error(w, "Failed to upload to GCS: "+err.Error(), http.StatusInternalServerError)
+	if err := uploadToGCS(ctx, csvBuf, objectName, map[string]string{"site": site}); err != nil {
+		uploadError(w, http.StatusInternalServerError, "couldn't upload file: %v", err)
 		return
 	}
 
 	uploadStore.Delete(token)
+	if err := tmpl.ExecuteTemplate(w, "upload", UploadResult{
+		Type:    "Success",
+		Message: fmt.Sprintf("saved file as %s", objectName),
+	}); err != nil {
+		uploadError(w, http.StatusInternalServerError, "template error: %v", err)
+		return
+	}
 }
 
-// returns a preview and an upload buffer
-func convertToCSV(file io.Reader) (*bytes.Buffer, error) {
-	xlsx, err := excelize.OpenReader(file)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing .xlsx file: %v", err)
-	}
-	sheetName := xlsx.GetSheetName(0)
-	rows, err := xlsx.GetRows(sheetName)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading sheet: %v", err)
-
-	}
-	buf := new(bytes.Buffer)
-	writer := csv.NewWriter(buf)
-
-	for i, row := range rows {
-		if i != 0 {
-			if err = validateForBQ(row); err != nil {
-				return nil, err
-			}
-		}
-		if err = writer.Write(row); err != nil {
-			return nil, fmt.Errorf("Error writing CSV: %v", err)
-		}
-	}
-	writer.Flush()
-	return buf, writer.Error() // just in case :)
-}
-
-func uploadToGCS(ctx context.Context, buf *bytes.Buffer, objectName string) error {
-	wc := client.Bucket(bucketName).Object(objectName).NewWriter(ctx)
+func uploadToGCS(ctx context.Context, buf *bytes.Buffer, name string, metadata map[string]string) error {
+	wc := client.Bucket(bucketName).Object(name).NewWriter(ctx)
 	wc.ContentType = "text/csv"
+	wc.Metadata = metadata
 
 	if _, err := io.Copy(wc, buf); err != nil {
 		return fmt.Errorf("failed to write to GCS: %v", err)
 	}
-	if err := wc.Close(); err != nil {
-		return fmt.Errorf("error closing conn for upload: %v", err)
-	}
-	return nil
+	return wc.Close()
 }
 
 type bqField struct {
@@ -88,30 +96,34 @@ type bqField struct {
 	Type string
 }
 
-var schema = []bqField{
-	{"AppointmentID", "INTEGER"},
-	{"Accession", "STRING"},
-	{"AppointmentDate", "DATE"},
-	{"Location", "STRING"},
-	{"PatientMRN", "STRING"},
-	{"PatientLastName", "STRING"},
-	{"PatientFirstName", "STRING"},
-	{"PatientMiddleName", "STRING"},
-	{"Insurance_Plan", "STRING"},
-	{"Insurance_PlanSecondary", "STRING"},
-	{"Insurance_PlanTertiary", "STRING"},
-	{"ReferringPhysicianFirstName", "STRING"},
-	{"ReferringPhysicianLastName", "STRING"},
-	{"Insurance_SubscriberNumber", "STRING"},
-	{"Insurance_SubscriberNumberSecondary", "STRING"},
-	{"Insurance_SubscriberNumberTertiary", "STRING"},
-	{"ExamResultsStatus", "STRING"},
-	{"ExamFinalizedDate", "TIMESTAMP"},
-	{"ExamFinalizedDate_hourofday", "INTEGER"},
-	{"CPTCode", "STRING"},
-	{"CPTDescription", "STRING"},
-	{"Exam_ExamCode", "STRING"},
-	{"ExamDescriptionDisplay", "STRING"},
+type schema []bqField
+
+var schemaMap = map[Site]schema{
+	STRIC: {
+		{"AppointmentID", "INTEGER"},
+		{"Accession", "STRING"},
+		{"AppointmentDate", "DATE"},
+		{"Location", "STRING"},
+		{"PatientMRN", "STRING"},
+		{"PatientLastName", "STRING"},
+		{"PatientFirstName", "STRING"},
+		{"PatientMiddleName", "STRING"},
+		{"Insurance_Plan", "STRING"},
+		{"Insurance_PlanSecondary", "STRING"},
+		{"Insurance_PlanTertiary", "STRING"},
+		{"ReferringPhysicianFirstName", "STRING"},
+		{"ReferringPhysicianLastName", "STRING"},
+		{"Insurance_SubscriberNumber", "STRING"},
+		{"Insurance_SubscriberNumberSecondary", "STRING"},
+		{"Insurance_SubscriberNumberTertiary", "STRING"},
+		{"ExamResultsStatus", "STRING"},
+		{"ExamFinalizedDate", "TIMESTAMP"},
+		{"ExamFinalizedDate_hourofday", "INTEGER"},
+		{"CPTCode", "STRING"},
+		{"CPTDescription", "STRING"},
+		{"Exam_ExamCode", "STRING"},
+		{"ExamDescriptionDisplay", "STRING"},
+	},
 }
 
 type fieldError struct {
@@ -126,7 +138,10 @@ func (e *fieldError) Error() string {
 
 const excelTimeFormat = "1/2/2006 3:04:05 PM"
 
-func validateForBQ(row []string) error {
+func validateForBQ(row []string, schema schema) error {
+	if schema == nil {
+		return nil
+	}
 	for i, field := range schema {
 		if i >= len(row) {
 			return fmt.Errorf("missing value for column %s", field.Name)
@@ -172,4 +187,23 @@ func validateForBQ(row []string) error {
 		}
 	}
 	return nil
+}
+
+type UploadResult struct {
+	Type    string
+	Message string
+}
+
+func uploadError(w http.ResponseWriter, code int, format string, a ...any) {
+	res := UploadResult{
+		Type:    "Error",
+		Message: fmt.Sprintf(format, a...),
+	}
+	log.Println("upload error:", res.Message)
+	if err := tmpl.ExecuteTemplate(w, "upload", res); err != nil {
+		log.Printf("TEMPLATE EXECUTION ERROR: %v", err)
+	}
+	if code > 399 {
+		log.Println(res.Message)
+	}
 }
