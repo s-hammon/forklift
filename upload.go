@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -47,10 +48,17 @@ var uploadHandler = func(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	site := r.FormValue("site")
-	if _, ok := allowedTables[Site(site)]; !ok {
+	s, ok := schemaMap[Site(site)]
+	if !ok {
 		uploadError(w, http.StatusBadRequest, "invalid BigQuery table selected")
 		return
 	}
+	schema, err := json.Marshal(s)
+	if err != nil {
+		uploadError(w, http.StatusInternalServerError, "couldn't marshal schema to JSON: %v", err)
+		return
+	}
+
 	site = strings.ToLower(strings.ReplaceAll(site, " ", "_"))
 
 	value, ok := uploadStore.Load(token)
@@ -65,7 +73,10 @@ var uploadHandler = func(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	objectName := fmt.Sprintf("upload_%s.csv", token)
-	if err := uploadToGCS(ctx, csvBuf, objectName, map[string]string{"site": site}); err != nil {
+	if err := uploadToGCS(ctx, csvBuf, objectName, map[string]string{
+		"site":   site,
+		"schema": string(schema),
+	}); err != nil {
 		uploadError(w, http.StatusInternalServerError, "couldn't upload file: %v", err)
 		return
 	}
