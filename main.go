@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"cloud.google.com/go/storage"
 )
@@ -21,12 +22,15 @@ var (
 )
 
 func init() {
+	var err error
+	if _, err = exec.LookPath("libreoffice"); err != nil {
+		log.Fatal("'libreoffice' is not in PATH")
+	}
 	bucketName = os.Getenv("GCS_BUCKET_NAME")
 	if bucketName == "" {
 		log.Fatal("name for GCS bucket not provided")
 	}
 
-	var err error
 	tmpl, err = template.New("").ParseGlob("templates/*.html")
 	if err != nil {
 		log.Fatalf("TEMPLATE PARSE ERROR: %v", err)

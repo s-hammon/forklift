@@ -1,0 +1,5 @@
+## Requirements
+
+```shell
+libreoffice
+```
